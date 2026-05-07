@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
           <img
             src="/logo-completo.png"
             alt="LotTrack"
-            className="h-10 mx-auto mb-3"
+            className="h-30 mx-auto mb-3"
           />
           <CardTitle className="text-lg text-[#fafafa]">
             Recuperar contraseña
