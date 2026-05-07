@@ -5,7 +5,6 @@ import { useExpenses } from "@/lib/expense-context";
 import { formatCurrency } from "@/lib/utils";
 import {
   WALLET_TYPE_LABELS,
-  WALLET_TYPE_COLORS,
 } from "@/lib/expense-types";
 import type { WalletType } from "@/lib/expense-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

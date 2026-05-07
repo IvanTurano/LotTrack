@@ -97,14 +97,6 @@ export function ExpenseStats() {
     return categoryData.slice(0, 5);
   }, [categoryData]);
 
-  const topCatChartConfig: ChartConfig = useMemo(() => {
-    const config: ChartConfig = {};
-    for (const item of topCategories) {
-      config[item.name] = { label: item.name, color: item.color };
-    }
-    return config;
-  }, [topCategories]);
-
   // Summary numbers
   const totalExpenses = monthlyExpenses.reduce((s, e) => s + e.amount, 0);
   const totalIncomes = monthlyIncomes.reduce((s, i) => s + i.amount, 0);

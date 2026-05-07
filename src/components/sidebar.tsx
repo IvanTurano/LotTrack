@@ -8,7 +8,6 @@ import {
   LogOut,
   Lock,
 } from "lucide-react";
-import logoSvg from "/logolottrack.png";
 
 const NAV_SECTIONS = [
   {

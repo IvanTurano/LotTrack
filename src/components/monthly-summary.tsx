@@ -9,7 +9,6 @@ export function MonthlySummary() {
   const { getMonthlySales } = useSales();
   const monthlySales = getMonthlySales();
 
-  const totalSales = monthlySales.reduce((sum, s) => sum + s.salesAmount, 0);
   const totalCommission = monthlySales.reduce(
     (sum, s) => sum + s.commission,
     0

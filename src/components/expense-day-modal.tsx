@@ -25,19 +25,8 @@ import {
   Trash2,
   ArrowDownLeft,
   ArrowUpRight,
-  Wallet,
-  PiggyBank,
-  CreditCard,
-  Smartphone,
   AlertTriangle,
 } from "lucide-react";
-import type { WalletType } from "@/lib/expense-types";
-
-const WALLET_TYPE_ICONS: Record<WalletType, typeof Wallet> = {
-  cash: PiggyBank,
-  bank: CreditCard,
-  virtual: Smartphone,
-};
 
 export function ExpenseDayModal() {
   const {
@@ -129,14 +118,6 @@ export function ExpenseDayModal() {
     (walletId: string) => {
       const w = wallets.find((w) => w.id === walletId);
       return w?.color ?? "#898989";
-    },
-    [wallets]
-  );
-
-  const getWalletType = useCallback(
-    (walletId: string): WalletType => {
-      const w = wallets.find((w) => w.id === walletId);
-      return w?.type ?? "cash";
     },
     [wallets]
   );
@@ -302,8 +283,6 @@ export function ExpenseDayModal() {
             {dayIncomes.length > 0 ? (
               <div className="flex flex-col gap-1.5">
                 {dayIncomes.map((inc) => {
-                  const walletType = getWalletType(inc.walletId);
-                  const Icon = WALLET_TYPE_ICONS[walletType];
                   return (
                     <div
                       key={inc.id}
@@ -424,8 +403,6 @@ export function ExpenseDayModal() {
             {dayExpenses.length > 0 ? (
               <div className="flex flex-col gap-1.5">
                 {dayExpenses.map((exp) => {
-                  const walletType = getWalletType(exp.walletId);
-                  const Icon = WALLET_TYPE_ICONS[walletType];
                   const cat = getCategoryById(exp.categoryId);
                   return (
                     <div
