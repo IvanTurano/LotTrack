@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useExpenses } from "@/lib/expense-context";
 import { cn, formatCurrency } from "@/lib/utils";
-import type { Expense, Income } from "@/lib/expense-types";
 import {
   Dialog,
   DialogContent,
