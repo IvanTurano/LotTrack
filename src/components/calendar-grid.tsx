@@ -17,10 +17,9 @@ function getFirstDayOfMonth(month: number, year: number): number {
 }
 
 export function CalendarGrid() {
-  const { state, getMonthlySales, dispatch } = useSales();
+  const { state, monthlySales, dispatch } = useSales();
   const { selectedMonth, selectedYear, editingDate } = state;
 
-  const monthlySales = getMonthlySales();
   const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
   const firstDay = getFirstDayOfMonth(selectedMonth, selectedYear);
   const today = new Date();

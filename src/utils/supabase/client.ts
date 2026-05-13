@@ -32,10 +32,14 @@ export function getSupabase(): SupabaseClient {
   return _supabase;
 }
 
-/** Convenience alias */
-export const supabase = {
-  get auth() {
-    return getSupabase().auth;
+/** Convenience alias — delegates to the real client */
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabase();
+    const value = (client as Record<string, unknown>)[prop as string];
+    if (typeof value === "function") {
+      return value.bind(client);
+    }
+    return value;
   },
-  from: (...args: Parameters<SupabaseClient["from"]>) => getSupabase().from(...args),
-};
+});

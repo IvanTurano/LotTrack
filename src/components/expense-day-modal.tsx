@@ -32,21 +32,28 @@ export function ExpenseDayModal() {
   const {
     state,
     dispatch,
-    getExpensesForDate,
-    getIncomesForDate,
     addExpense,
     deleteExpense,
     addIncome,
     deleteIncome,
     getCategoryById,
+    getExpensesForDate,
+    getIncomesForDate,
   } = useExpenses();
   const { editingDate, categories, wallets } = state;
 
   const isOpen = editingDate !== null;
 
-  // Data
-  const [dayExpenses, setDayExpenses] = useState<Expense[]>([]);
-  const [dayIncomes, setDayIncomes] = useState<Income[]>([]);
+  // Data — derived from context instead of separate Supabase calls
+  const dayExpenses = useMemo(
+    () => (editingDate ? getExpensesForDate(editingDate) : []),
+    [editingDate, getExpensesForDate]
+  );
+
+  const dayIncomes = useMemo(
+    () => (editingDate ? getIncomesForDate(editingDate) : []),
+    [editingDate, getIncomesForDate]
+  );
 
   // Forms
   const [showExpenseForm, setShowExpenseForm] = useState(false);
@@ -83,23 +90,14 @@ export function ExpenseDayModal() {
     expenseAmountNum > 0 &&
     selectedExpenseWallet.balance < expenseAmountNum;
 
-  // Refresh data when date changes
+  // Reset form state when the modal opens for a new date
   useEffect(() => {
     if (editingDate) {
-      setDayExpenses(getExpensesForDate(editingDate));
-      setDayIncomes(getIncomesForDate(editingDate));
       setShowExpenseForm(false);
       setShowIncomeForm(false);
       setInsufficientFunds(false);
     }
-  }, [editingDate, getExpensesForDate, getIncomesForDate]);
-
-  const refreshData = useCallback(() => {
-    if (editingDate) {
-      setDayExpenses(getExpensesForDate(editingDate));
-      setDayIncomes(getIncomesForDate(editingDate));
-    }
-  }, [editingDate, getExpensesForDate, getIncomesForDate]);
+  }, [editingDate]);
 
   const handleClose = useCallback(() => {
     dispatch({ type: "SET_EDITING_DATE", payload: null });
@@ -151,7 +149,6 @@ export function ExpenseDayModal() {
       setExpWalletId("");
       setExpAmount("");
       setShowExpenseForm(false);
-      refreshData();
     } catch (err) {
       console.error("Error adding expense:", err);
     } finally {
@@ -165,7 +162,6 @@ export function ExpenseDayModal() {
     expWalletId,
     expAmount,
     addExpense,
-    refreshData,
     isSubmitting,
   ]);
 
@@ -176,14 +172,13 @@ export function ExpenseDayModal() {
       try {
         await deleteExpense(editingDate, id);
         setInsufficientFunds(false);
-        refreshData();
       } catch (err) {
         console.error("Error deleting expense:", err);
       } finally {
         setIsSubmitting(false);
       }
     },
-    [editingDate, deleteExpense, refreshData, isSubmitting]
+    [editingDate, deleteExpense, isSubmitting]
   );
 
   // --- Income handlers ---
@@ -207,7 +202,6 @@ export function ExpenseDayModal() {
       setIncWalletId("");
       setIncAmount("");
       setShowIncomeForm(false);
-      refreshData();
     } catch (err) {
       console.error("Error adding income:", err);
     } finally {
@@ -220,7 +214,6 @@ export function ExpenseDayModal() {
     incWalletId,
     incAmount,
     addIncome,
-    refreshData,
     isSubmitting,
   ]);
 
@@ -230,14 +223,13 @@ export function ExpenseDayModal() {
       setIsSubmitting(true);
       try {
         await deleteIncome(editingDate, id);
-        refreshData();
       } catch (err) {
         console.error("Error deleting income:", err);
       } finally {
         setIsSubmitting(false);
       }
     },
-    [editingDate, deleteIncome, refreshData, isSubmitting]
+    [editingDate, deleteIncome, isSubmitting]
   );
 
   const formattedDate = editingDate

@@ -214,28 +214,43 @@ export async function updateWalletBalance(
 ): Promise<void> {
   const userId = await getUserId();
 
-  // Fetch current balance
-  const { data, error: fetchError } = await supabase
-    .from("wallets")
-    .select("balance")
-    .eq("id", id)
-    .eq("user_id", userId)
-    .single();
-
-  if (fetchError) {
-    console.error("Error fetching wallet balance:", fetchError);
-    throw fetchError;
-  }
-
-  const newBalance = Number(data.balance) + amountChange;
-
-  const { error } = await supabase
-    .from("wallets")
-    .update({ balance: newBalance })
-    .eq("id", id)
-    .eq("user_id", userId);
+  // Use atomic RPC to avoid race condition from read-then-write
+  const { error } = await supabase.rpc("update_wallet_balance_atomic", {
+    p_wallet_id: id,
+    p_user_id: userId,
+    p_amount_change: amountChange,
+  });
 
   if (error) {
+    // Fallback for old databases without the RPC function
+    if (error.message?.includes("function") && error.message?.includes("does not exist")) {
+      console.warn("RPC function not found, falling back to non-atomic update. Run schema.sql in Supabase SQL Editor.");
+      const { data, error: fetchError } = await supabase
+        .from("wallets")
+        .select("balance")
+        .eq("id", id)
+        .eq("user_id", userId)
+        .single();
+
+      if (fetchError) {
+        console.error("Error fetching wallet balance:", fetchError);
+        throw fetchError;
+      }
+
+      const newBalance = Number(data.balance) + amountChange;
+      const { error: updateError } = await supabase
+        .from("wallets")
+        .update({ balance: newBalance })
+        .eq("id", id)
+        .eq("user_id", userId);
+
+      if (updateError) {
+        console.error("Error updating wallet balance:", updateError);
+        throw updateError;
+      }
+      return;
+    }
+
     console.error("Error updating wallet balance:", error);
     throw error;
   }
@@ -246,10 +261,28 @@ export async function transferBetweenWallets(
   toWalletId: string,
   amount: number
 ): Promise<void> {
-  // Deduct from source
-  await updateWalletBalance(fromWalletId, -amount);
-  // Add to destination
-  await updateWalletBalance(toWalletId, amount);
+  const userId = await getUserId();
+
+  // Use atomic RPC so both updates succeed or neither does
+  const { error } = await supabase.rpc("transfer_between_wallets_atomic", {
+    p_from_wallet_id: fromWalletId,
+    p_to_wallet_id: toWalletId,
+    p_user_id: userId,
+    p_amount: amount,
+  });
+
+  if (error) {
+    // Fallback for old databases without the RPC function
+    if (error.message?.includes("function") && error.message?.includes("does not exist")) {
+      console.warn("RPC function not found, falling back to non-atomic transfer. Run schema.sql in Supabase SQL Editor.");
+      await updateWalletBalance(fromWalletId, -amount);
+      await updateWalletBalance(toWalletId, amount);
+      return;
+    }
+
+    console.error("Error transferring between wallets:", error);
+    throw error;
+  }
 }
 
 // ---- Categories ----
@@ -693,35 +726,73 @@ export async function deleteFixedExpense(id: string): Promise<boolean> {
 /**
  * Generate expense entries for all active fixed expenses for a given month.
  * Returns the newly created expenses (skips dates that already have a matching fixed expense).
+ *
+ * Batched: fetches all existing expenses for the month in one query, then inserts in parallel.
  */
 export async function applyFixedExpensesForMonth(
   month: number,
   year: number
 ): Promise<Expense[]> {
   const fixed = (await getFixedExpenses()).filter((f) => f.active);
-  const created: Expense[] = [];
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  if (fixed.length === 0) return [];
 
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const userId = await getUserId();
+  const monthStr = String(month + 1).padStart(2, "0");
+
+  // Build all date strings and collect fixed expenses
+  const entries: { dateStr: string; fe: FixedExpense }[] = [];
   for (const fe of fixed) {
     const day = Math.min(fe.dayOfMonth, daysInMonth);
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-
-    // Check if already generated
-    const existing = await getExpensesByDate(dateStr);
-    const alreadyExists = existing.some((e) => e.fixedExpenseId === fe.id);
-    if (alreadyExists) continue;
-
-    const expense = await addExpense({
-      date: dateStr,
-      title: fe.title,
-      description: fe.description,
-      categoryId: fe.categoryId,
-      walletId: fe.walletId,
-      amount: fe.amount,
-      fixedExpenseId: fe.id,
-    });
-    created.push(expense);
+    const dateStr = `${year}-${monthStr}-${String(day).padStart(2, "0")}`;
+    entries.push({ dateStr, fe });
   }
 
-  return created;
+  // Fetch ALL existing expenses for these dates in a single query
+  const startDate = `${year}-${monthStr}-01`;
+  const endMonth = month + 2 > 12 ? 1 : month + 2;
+  const endYear = month + 2 > 12 ? year + 1 : year;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
+
+  const { data: existingData, error: existingError } = await supabase
+    .from("expenses")
+    .select("id, date, fixed_expense_id")
+    .eq("user_id", userId)
+    .gte("date", startDate)
+    .lt("date", endDate);
+
+  if (existingError) {
+    console.error("Error fetching existing expenses:", existingError);
+    return [];
+  }
+
+  // Build a Set of (date + fixedExpenseId) pairs that already exist
+  const existingSet = new Set<string>();
+  for (const row of (existingData ?? [])) {
+    existingSet.add(`${row.date}:${row.fixed_expense_id}`);
+  }
+
+  // Filter entries that don't exist yet
+  const toCreate = entries.filter(
+    ({ dateStr, fe }) => !existingSet.has(`${dateStr}:${fe.id}`)
+  );
+
+  if (toCreate.length === 0) return [];
+
+  // Insert all new expenses in parallel
+  const created = await Promise.all(
+    toCreate.map(({ dateStr, fe }) =>
+      addExpense({
+        date: dateStr,
+        title: fe.title,
+        description: fe.description,
+        categoryId: fe.categoryId,
+        walletId: fe.walletId,
+        amount: fe.amount,
+        fixedExpenseId: fe.id,
+      })
+    )
+  );
+
+  return created.filter((e): e is Expense => e !== null);
 }

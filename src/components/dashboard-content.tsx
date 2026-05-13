@@ -35,28 +35,48 @@ import {
   Scale,
 } from "lucide-react";
 
+// Static chart configs — hoisted outside the component to avoid recreating on every render
+const salesBarConfig: ChartConfig = {
+  comision: { label: "Comisión", color: "#3ecf8e" },
+  propinas: { label: "Propinas", color: "#6ee7b7" },
+};
+
+const expenseBarConfig: ChartConfig = {
+  ingresos: { label: "Ingresos", color: "#3ecf8e" },
+  gastos: { label: "Gastos", color: "#ef4444" },
+};
+
 export function DashboardContent() {
-  const { getMonthlySales } = useSales();
+  const { monthlySales } = useSales();
   const {
     state: expenseState,
     getMonthlyExpenses,
     getMonthlyIncomes,
   } = useExpenses();
 
-  const monthlySales = getMonthlySales();
   const monthlyExpenses = getMonthlyExpenses();
   const monthlyIncomes = getMonthlyIncomes();
 
-  // ---- Sueldo numbers ----
-  const totalSales = monthlySales.reduce((s, v) => s + v.salesAmount, 0);
-  const totalCommission = monthlySales.reduce((s, v) => s + v.commission, 0);
-  const totalTips = monthlySales.reduce((s, v) => s + (v.tip || 0), 0);
-  const totalEarnings = totalCommission + totalTips;
+  // ---- Sueldo numbers (memoized) ----
+  const { totalSales, totalCommission, totalTips, totalEarnings } = useMemo(
+    () => {
+      const totalSales = monthlySales.reduce((s, v) => s + v.salesAmount, 0);
+      const totalCommission = monthlySales.reduce((s, v) => s + v.commission, 0);
+      const totalTips = monthlySales.reduce((s, v) => s + (v.tip || 0), 0);
+      return { totalSales, totalCommission, totalTips, totalEarnings: totalCommission + totalTips };
+    },
+    [monthlySales]
+  );
 
-  // ---- Gastos numbers ----
-  const totalExpenses = monthlyExpenses.reduce((s, e) => s + e.amount, 0);
-  const totalIncomes = monthlyIncomes.reduce((s, i) => s + i.amount, 0);
-  const expenseBalance = totalIncomes - totalExpenses;
+  // ---- Gastos numbers (memoized) ----
+  const { totalExpenses, totalIncomes, expenseBalance } = useMemo(
+    () => {
+      const totalExpenses = monthlyExpenses.reduce((s, e) => s + e.amount, 0);
+      const totalIncomes = monthlyIncomes.reduce((s, i) => s + i.amount, 0);
+      return { totalExpenses, totalIncomes, expenseBalance: totalIncomes - totalExpenses };
+    },
+    [monthlyExpenses, monthlyIncomes]
+  );
 
   // ---- Sueldo daily chart ----
   const salesDailyData = useMemo(() => {
@@ -85,11 +105,6 @@ export function DashboardContent() {
     }
     return data;
   }, [monthlySales, expenseState.selectedMonth, expenseState.selectedYear]);
-
-  const salesBarConfig: ChartConfig = {
-    comision: { label: "Comisión", color: "#3ecf8e" },
-    propinas: { label: "Propinas", color: "#6ee7b7" },
-  };
 
   // ---- Gastos daily chart ----
   const expenseDailyData = useMemo(() => {
@@ -126,11 +141,6 @@ export function DashboardContent() {
     expenseState.selectedMonth,
     expenseState.selectedYear,
   ]);
-
-  const expenseBarConfig: ChartConfig = {
-    ingresos: { label: "Ingresos", color: "#3ecf8e" },
-    gastos: { label: "Gastos", color: "#ef4444" },
-  };
 
   // ---- Category donut ----
   const categoryData = useMemo(() => {

@@ -4,6 +4,7 @@ import {
   useReducer,
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -324,16 +325,39 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_CATEGORIES", payload: cats });
   }, []);
 
-  const getCategoryById = useCallback(
-    (id: string) => state.categories.find((c) => c.id === id),
-    [state.categories]
-  );
+  // --- Derived data: memoized Maps for O(1) lookups ---
+  const expensesByDateMap = useMemo(() => {
+    const map = new Map<string, Expense[]>();
+    for (const exp of state.monthlyExpenses) {
+      const arr = map.get(exp.date) || [];
+      arr.push(exp);
+      map.set(exp.date, arr);
+    }
+    return map;
+  }, [state.monthlyExpenses]);
 
-  // --- Expenses ---
+  const incomesByDateMap = useMemo(() => {
+    const map = new Map<string, Income[]>();
+    for (const inc of state.monthlyIncomes) {
+      const arr = map.get(inc.date) || [];
+      arr.push(inc);
+      map.set(inc.date, arr);
+    }
+    return map;
+  }, [state.monthlyIncomes]);
+
+  const categoriesMap = useMemo(() => {
+    const map = new Map<string, Category>();
+    for (const cat of state.categories) {
+      map.set(cat.id, cat);
+    }
+    return map;
+  }, [state.categories]);
+
+  // --- Date helpers (memoized with Maps, O(1) instead of O(n)) ---
   const getExpensesForDate = useCallback(
-    (date: string) =>
-      state.monthlyExpenses.filter((e) => e.date === date),
-    [state.monthlyExpenses]
+    (date: string): Expense[] => expensesByDateMap.get(date) || [],
+    [expensesByDateMap]
   );
 
   const addExpense = useCallback(
@@ -386,9 +410,8 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
 
   // --- Incomes ---
   const getIncomesForDate = useCallback(
-    (date: string) =>
-      state.monthlyIncomes.filter((i) => i.date === date),
-    [state.monthlyIncomes]
+    (date: string): Income[] => incomesByDateMap.get(date) || [],
+    [incomesByDateMap]
   );
 
   const addIncome = useCallback(
@@ -478,43 +501,56 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
 
   // --- Date helpers ---
   const hasEntriesForDate = useCallback(
-    (date: string): boolean => {
-      const hasExpenses = state.monthlyExpenses.some((e) => e.date === date);
-      const hasIncomes = state.monthlyIncomes.some((i) => i.date === date);
-      return hasExpenses || hasIncomes;
-    },
-    [state.monthlyExpenses, state.monthlyIncomes]
+    (date: string): boolean =>
+      expensesByDateMap.has(date) || incomesByDateMap.has(date),
+    [expensesByDateMap, incomesByDateMap]
+  );
+
+  const getCategoryById = useCallback(
+    (id: string): Category | undefined => categoriesMap.get(id),
+    [categoriesMap]
+  );
+
+  // --- Context value: memoized to prevent unnecessary re-renders ---
+  const value = useMemo<ExpenseContextValue>(
+    () => ({
+      state,
+      dispatch,
+      addWallet,
+      updateWallet,
+      deleteWallet,
+      transferBetweenWallets,
+      addCategory,
+      updateCategory,
+      deleteCategory,
+      getCategoryById,
+      getExpensesForDate,
+      addExpense,
+      deleteExpense,
+      getMonthlyExpenses,
+      getIncomesForDate,
+      addIncome,
+      deleteIncome,
+      getMonthlyIncomes,
+      addFixedExpense,
+      updateFixedExpense,
+      deleteFixedExpense,
+      applyFixedExpenses,
+      hasEntriesForDate,
+      refreshMonthlyData,
+    }),
+    [
+      state, dispatch, addWallet, updateWallet, deleteWallet,
+      transferBetweenWallets, addCategory, updateCategory, deleteCategory,
+      getCategoryById, getExpensesForDate, addExpense, deleteExpense,
+      getMonthlyExpenses, getIncomesForDate, addIncome, deleteIncome,
+      getMonthlyIncomes, addFixedExpense, updateFixedExpense, deleteFixedExpense,
+      applyFixedExpenses, hasEntriesForDate, refreshMonthlyData,
+    ]
   );
 
   return (
-    <ExpenseContext.Provider
-      value={{
-        state,
-        dispatch,
-        addWallet,
-        updateWallet,
-        deleteWallet,
-        transferBetweenWallets,
-        addCategory,
-        updateCategory,
-        deleteCategory,
-        getCategoryById,
-        getExpensesForDate,
-        addExpense,
-        deleteExpense,
-        getMonthlyExpenses,
-        getIncomesForDate,
-        addIncome,
-        deleteIncome,
-        getMonthlyIncomes,
-        addFixedExpense,
-        updateFixedExpense,
-        deleteFixedExpense,
-        applyFixedExpenses,
-        hasEntriesForDate,
-        refreshMonthlyData,
-      }}
-    >
+    <ExpenseContext.Provider value={value}>
       {children}
     </ExpenseContext.Provider>
   );

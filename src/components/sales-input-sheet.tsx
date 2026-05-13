@@ -19,17 +19,16 @@ function formatDateDisplay(dateStr: string): string {
 }
 
 export function SalesInputSheet() {
-  const { state, saveSale, deleteSale, getSaleByDate, dispatch } = useSales();
+  const { state, saveSale, deleteSale, saleByDate, dispatch } = useSales();
   const { editingDate } = state;
   const [inputValue, setInputValue] = useState("");
   const [tipValue, setTipValue] = useState("");
   const [saved, setSaved] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
   const todayStr = getTodayString();
   const isToday = editingDate === todayStr;
-  const existingSale = getSaleByDate(editingDate);
+  const existingSale = saleByDate(editingDate);
 
   // Pre-fill input when editing date changes
   useEffect(() => {

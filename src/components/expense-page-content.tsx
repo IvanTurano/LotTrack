@@ -10,21 +10,7 @@ import { FixedExpensesManager } from "./fixed-expenses-manager";
 import { CategoryManager } from "./category-manager";
 import { WalletManager } from "./wallet-manager";
 import { ExpenseMonthNavigator } from "./expense-month-navigator";
-
-const SPANISH_MONTHS = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-];
+import { SPANISH_MONTHS } from "@/lib/utils";
 
 export function ExpensePageContent() {
   const { state, applyFixedExpenses } = useExpenses();

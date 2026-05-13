@@ -4,6 +4,7 @@ import {
   useReducer,
   useEffect,
   useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 import type { DailySale, SalesState, SalesAction } from "./types";
@@ -62,8 +63,8 @@ interface SalesContextValue {
   dispatch: React.Dispatch<SalesAction>;
   saveSale: (sale: DailySale) => Promise<void>;
   deleteSale: (id: string) => Promise<void>;
-  getMonthlySales: () => DailySale[];
-  getSaleByDate: (date: string) => DailySale | undefined;
+  monthlySales: DailySale[];
+  saleByDate: (date: string) => DailySale | undefined;
 }
 
 const SalesContext = createContext<SalesContextValue | null>(null);
@@ -93,31 +94,45 @@ export function SalesProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "DELETE_SALE", payload: id });
   }, []);
 
-  const getMonthlySales = useCallback((): DailySale[] => {
-    return state.sales.filter((sale) => {
-      const [y, m] = sale.date.split("-").map(Number);
-      return y === state.selectedYear && m === state.selectedMonth + 1;
-    });
-  }, [state.sales, state.selectedMonth, state.selectedYear]);
+  // Derived state: memoized so consumers only re-render when the result changes
+  const monthlySales = useMemo(
+    () =>
+      state.sales.filter((sale) => {
+        const [y, m] = sale.date.split("-").map(Number);
+        return y === state.selectedYear && m === state.selectedMonth + 1;
+      }),
+    [state.sales, state.selectedMonth, state.selectedYear]
+  );
 
-  const getSaleByDate = useCallback(
-    (date: string): DailySale | undefined => {
-      return state.sales.find((s) => s.date === date);
-    },
-    [state.sales]
+  // Build a Map from the full sales array for O(1) date lookups
+  const salesByDateMap = useMemo(() => {
+    const map = new Map<string, DailySale>();
+    for (const sale of state.sales) {
+      map.set(sale.date, sale);
+    }
+    return map;
+  }, [state.sales]);
+
+  const saleByDate = useCallback(
+    (date: string): DailySale | undefined => salesByDateMap.get(date),
+    [salesByDateMap]
+  );
+
+  // Memoize context value to prevent unnecessary re-renders of all consumers
+  const value = useMemo<SalesContextValue>(
+    () => ({
+      state,
+      dispatch,
+      saveSale,
+      deleteSale,
+      monthlySales,
+      saleByDate,
+    }),
+    [state, dispatch, saveSale, deleteSale, monthlySales, saleByDate]
   );
 
   return (
-    <SalesContext.Provider
-      value={{
-        state,
-        dispatch,
-        saveSale,
-        deleteSale,
-        getMonthlySales,
-        getSaleByDate,
-      }}
-    >
+    <SalesContext.Provider value={value}>
       {children}
     </SalesContext.Provider>
   );
@@ -129,4 +144,13 @@ export function useSales(): SalesContextValue {
     throw new Error("useSales must be used within a SalesProvider");
   }
   return context;
+}
+
+/**
+ * Convenience hook: select only the derived monthly sales.
+ * Prevents re-renders when other parts of state change (e.g. editingDate).
+ */
+export function useMonthlySales() {
+  const { monthlySales } = useContext(SalesContext)!;
+  return monthlySales;
 }

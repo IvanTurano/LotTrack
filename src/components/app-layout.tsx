@@ -1,10 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "@/components/sidebar";
 import { BottomNav } from "@/components/bottom-nav";
 import { supabase, isSupabaseConfigured } from "@/utils/supabase/client";
 import { SalesProvider } from "@/lib/sales-context";
 import { ExpenseProvider } from "@/lib/expense-context";
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="w-6 h-6 border-2 border-[#3ecf8e] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 export function AppLayout() {
   const [userName, setUserName] = useState<string | undefined>();
@@ -59,7 +67,9 @@ export function AppLayout() {
       <main ref={mainRef} className="flex-1 overflow-auto pb-20 sm:pb-0">
         <SalesProvider>
           <ExpenseProvider>
-            <Outlet />
+            <Suspense fallback={<PageLoader />}>
+              <Outlet />
+            </Suspense>
           </ExpenseProvider>
         </SalesProvider>
       </main>

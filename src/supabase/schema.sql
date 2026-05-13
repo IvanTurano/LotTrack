@@ -125,3 +125,47 @@ CREATE INDEX idx_wallets_user ON wallets(user_id);
 CREATE INDEX idx_expenses_wallet ON expenses(wallet_id);
 CREATE INDEX idx_incomes_wallet ON incomes(wallet_id);
 CREATE INDEX idx_fixed_expenses_wallet ON fixed_expenses(wallet_id);
+
+-- ============================================================
+-- RPC Functions for atomic operations
+-- Run these in Supabase SQL Editor if they don't exist yet
+-- ============================================================
+
+-- 1. Atomically update wallet balance (avoids race condition from read-then-write)
+CREATE OR REPLACE FUNCTION update_wallet_balance_atomic(
+  p_wallet_id UUID,
+  p_user_id UUID,
+  p_amount_change NUMERIC
+) RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE wallets
+  SET balance = balance + p_amount_change
+  WHERE id = p_wallet_id AND user_id = p_user_id;
+END;
+$$;
+
+-- 2. Atomically transfer between wallets (both succeed or neither)
+CREATE OR REPLACE FUNCTION transfer_between_wallets_atomic(
+  p_from_wallet_id UUID,
+  p_to_wallet_id UUID,
+  p_user_id UUID,
+  p_amount NUMERIC
+) RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Deduct from source
+  UPDATE wallets
+  SET balance = balance - p_amount
+  WHERE id = p_from_wallet_id AND user_id = p_user_id;
+
+  -- Add to destination
+  UPDATE wallets
+  SET balance = balance + p_amount
+  WHERE id = p_to_wallet_id AND user_id = p_user_id;
+END;
+$$;

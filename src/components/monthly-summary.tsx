@@ -1,21 +1,27 @@
 "use client";
 
-import { useSales } from "@/lib/sales-context";
+import { useMemo } from "react";
+import { useMonthlySales } from "@/lib/sales-context";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, Calendar, DollarSign, HandCoins } from "lucide-react";
 
 export function MonthlySummary() {
-  const { getMonthlySales } = useSales();
-  const monthlySales = getMonthlySales();
+  const monthlySales = useMonthlySales();
 
-  const totalCommission = monthlySales.reduce(
-    (sum, s) => sum + s.commission,
-    0
+  const { totalCommission, totalTips, totalDelMes, daysLogged } = useMemo(
+    () => {
+      const totalCommission = monthlySales.reduce((sum, s) => sum + s.commission, 0);
+      const totalTips = monthlySales.reduce((sum, s) => sum + (s.tip || 0), 0);
+      return {
+        totalCommission,
+        totalTips,
+        totalDelMes: totalCommission + totalTips,
+        daysLogged: monthlySales.length,
+      };
+    },
+    [monthlySales]
   );
-  const totalTips = monthlySales.reduce((sum, s) => sum + (s.tip || 0), 0);
-  const totalDelMes = totalCommission + totalTips;
-  const daysLogged = monthlySales.length;
 
   const stats = [
     {

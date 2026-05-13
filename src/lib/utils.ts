@@ -20,11 +20,14 @@ export const SPANISH_MONTHS = [
   "Diciembre",
 ];
 
+// Cache the Intl.NumberFormat instance — creating a new one on every call is expensive
+const currencyFormatter = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "ARS",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
 export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(value);
+  return currencyFormatter.format(value);
 }
